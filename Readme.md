@@ -32,6 +32,10 @@ Jupyter notebook to to replicate the results for the phase angle analysis.
 
 NUTS sampler takes around 1 minute on AMD Ryzen 7.
 
+> [!NOTE]
+> If jax import fails due to jaxlib import error, install CPU version
+> `pip install --upgrade "jax[cpu]"`
+
 ## switchpoint.ipynb
 
 Jupyter notebook to replicate the results for the absolute complex shear modulus analysis.
