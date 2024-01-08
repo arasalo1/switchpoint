@@ -26,20 +26,12 @@ You can download the necessary files with
 python download_data.py
 ```
 
-## linear.ipynb
+## model.ipynb
 
-Jupyter notebook to to replicate the results for the phase angle analysis.
+Jupyter notebook to to replicate the results.
 
-NUTS sampler takes around 1 minute on AMD Ryzen 7.
+NUTS sampler takes around 6 minute on AMD Ryzen 7.
 
 > [!NOTE]
 > If jax import fails due to jaxlib import error, install CPU version
 > `pip install --upgrade "jax[cpu]"`
-
-## switchpoint.ipynb
-
-Jupyter notebook to replicate the results for the absolute complex shear modulus analysis.
-
-- This notebook also contains the visualizations for the joint effect sizes and heterogeneity comparisons. These require running the phase angle analysis (linear.ipynb) first and saving the results. These are posterior samples and the predictive heterogeneity results.
-
-NUTS sampler takes around 3 minutes on AMD Ryzen 7.
