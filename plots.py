@@ -49,12 +49,14 @@ def prior_predictive(model,n_prior,crosslinker_raw,crosslinker,crosslinker_macro
     ax[1].set_xlabel(xlabel,fontsize=15)
 
 
-    fig.savefig(f'results/prior_predictive_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/prior_predictive_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
 
 def plot_posterior(states,c_std,c_mean,model_type,mec_type):
     if model_type=='switchpoint':
         param_names = ['$\gamma$ (switchpoint)',
+        '$\gamma_z$',
+        '$\gamma^\sigma$',
         '$k^1$',
         '$k^2$',
         '$b^1$',
@@ -78,7 +80,6 @@ def plot_posterior(states,c_std,c_mean,model_type,mec_type):
         '$z^{\mathrm{probe}\;\sigma}$']
     elif model_type=='linear':
         param_names = [
-        '$k_{\mathrm{saturation}}$',
         '$k_{\\mu}$',
         '$k_{\mathrm{intercept}}$',
         '$\\alpha^\\sigma$',
@@ -148,9 +149,11 @@ def plot_posterior(states,c_std,c_mean,model_type,mec_type):
         ax.ravel()[-2].hist([],density=True,bins=30,alpha=0.4,label=k)
     ax.ravel()[-2].legend(loc='center')
     ax.ravel()[-2].axis('off')
+    ax.ravel()[-3].axis('off')
+    ax.ravel()[-4].axis('off')
     ax.ravel()[-1].axis('off')
     fig.tight_layout()
-    fig.savefig(f'results/all_posteriors_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/all_posteriors_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
 
 def posterior_comparisons(data,macro,samps,states,crosslinker_macro_raw,crosslinker_raw,G,G_macro,xlabel,naming,units,mec_type):
@@ -188,7 +191,7 @@ def posterior_comparisons(data,macro,samps,states,crosslinker_macro_raw,crosslin
     ax[1].set_xlabel(xlabel,fontsize=15)
     ax[1].set_title('ipn',fontsize=15)
     ax[0].set_title('alginate',fontsize=15)
-    fig.savefig(f'results/concentration_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/concentration_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
     fig,ax = plt.subplots(1,2)
 
@@ -207,7 +210,7 @@ def posterior_comparisons(data,macro,samps,states,crosslinker_macro_raw,crosslin
     ax[1].set_xlabel(xlabel,fontsize=15)
     ax[1].set_title('ipn',fontsize=15)
     ax[0].set_title('alginate',fontsize=15)
-    fig.savefig(f'results/temperature_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/temperature_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
     fig,ax = plt.subplots(1,2)
     sns.violinplot(data=df1[(df1['material']=='alginate') & (df1['type']=='model')],x='crosslinker',y='G',
@@ -227,7 +230,7 @@ def posterior_comparisons(data,macro,samps,states,crosslinker_macro_raw,crosslin
     ax[1].set_xlabel(xlabel)
     fig.suptitle('alginate')
 
-    fig.savefig(f'results/posterior_alginate_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/posterior_alginate_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
 
     fig,ax = plt.subplots(1,2)
@@ -248,12 +251,12 @@ def posterior_comparisons(data,macro,samps,states,crosslinker_macro_raw,crosslin
     ax[1].set_xlabel(xlabel)
     fig.suptitle('ipn')
 
-    fig.savefig(f'results/comparison_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/comparison_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
 
 
-def compare_micromacro(curve,curve_phi,c_pred,c_std,c_mean,xlabel):
-    def compa(x,ax,i,j,label,col,linestyle,flip=False):
+def compare_micromacro(curve,curve_phi,c_pred,c_std,c_mean,xlabel,G_rope,phi_rope):
+    def compa(x,ax,i,j,label,col,linestyle,rope,flip=False):
         if i is not None:
             t = einops.rearrange(x[:,:,i],'i j t-> (i j) t')
         if j is not None:
@@ -265,21 +268,21 @@ def compare_micromacro(curve,curve_phi,c_pred,c_std,c_mean,xlabel):
             tt = t-tt2
         else:
             tt = tt2-t
-        r = (tt>0.1).sum(axis=0)/tt.shape[0]
+        r = (tt>rope).sum(axis=0)/tt.shape[0]
         ax.plot(c_pred*c_std+c_mean,r,color=col,label=r'{}'.format(label),linestyle=linestyle)
 
     cols = sns.color_palette('colorblind')
     fig,ax = plt.subplots(1,1)
-    compa(curve,ax,0,2,'alginate |G*|',cols[0],'-')
-    compa(curve,ax,1,3,'ipn |G*|',cols[1],'-')
-    compa(curve_phi,ax,0,2,'alginate $\Phi$',cols[0],'--',True)
-    compa(curve_phi,ax,1,3,'ipn $\Phi$',cols[1],'--',True)
-    ax.axhline(0.95,color='black')
+    compa(curve,ax,0,2,'alginate |G*|',cols[0],'-',G_rope)
+    compa(curve,ax,1,3,'ipn |G*|',cols[1],'-',G_rope)
+    compa(curve_phi,ax,0,2,'alginate $\Phi$',cols[0],'--',phi_rope,True)
+    compa(curve_phi,ax,1,3,'ipn $\Phi$',cols[1],'--',phi_rope,True)
+    #ax.axhline(0.95,color='black')
     ax.set_xlabel(xlabel,fontsize=15)
     ax.set_ylabel('Probability',fontsize=15)
     ax.set_ylim([0,1.1])
     ax.legend()
-    fig.savefig(f'results/micromacro.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/micromacro.png',bbox_inches = 'tight',dpi=600)
 
 
 def plot_mean(c_pred,c_std,c_mean,curve,sigma,N_alg,N_pred,N_ipn,N_split,N_macro_alg,
@@ -333,11 +336,12 @@ def plot_mean(c_pred,c_std,c_mean,curve,sigma,N_alg,N_pred,N_ipn,N_split,N_macro
 
 def plot_heterogeneity(N_alg,N_ipn,N_pred,c_pred,crosslinker,type_indices,sigma,c_std,c_mean,naming,units,xlabel,mec_type):
     fig,ax = plt.subplots(1,1)
-    for x1,x2,t,c,d,e,f in zip([N_alg,N_ipn+N_alg+N_pred],
+    for x1,x2,t,c,d,e,f,g in zip([N_alg,N_ipn+N_alg+N_pred],
                         [N_alg+N_pred,N_ipn+N_alg+2*N_pred],
                         [0,1],
                         sns.color_palette('colorblind')[:2],
-                        ['alginate','IPN'],['-','--'],['/','\\']):
+                        ['alginate','IPN'],['-','--'],['/','\\'],
+                        [np.array([5,7.5,10,20,30]),np.array([5,10,20])]):
 
         mask = c_pred<crosslinker[type_indices==t].max()
         res = sigma[...,x1:x2]
@@ -363,21 +367,27 @@ def plot_heterogeneity(N_alg,N_ipn,N_pred,c_pred,crosslinker,type_indices,sigma,
     #    ax.set_title(r'heterogeneity of |G$^*$|')
     #else:
     #    ax.set_title(r'heterogeneity of $\Phi$')
+        c_trans = c_pred_masked*c_std+c_mean
+        diffs = np.abs(g[...,None]-c_trans[None,...])
+        coords = np.argmin(diffs,axis=1)
+        cs = c_trans[coords]
+        vals = r_mean[coords]
+        ax.scatter(cs,vals,s=60)
     ax.set_xlabel(xlabel,fontsize=15)
     ax.set_ylabel(r'Heterogeneity of ${}$'.format(naming,units),fontsize=15)
     ax.tick_params(axis='y',labelsize=12)
     ax.tick_params(axis='x',labelsize=12)
     ax.text(0.05, 0.95, 'A' if mec_type=='G' else 'B', transform=ax.transAxes,fontsize=20)
     if mec_type=='G':
-        ax.set_ylim([0,1.5])
+        ax.set_ylim([0,2.3])
     else:
-        ax.set_ylim([0,2.0])
+        ax.set_ylim([0,1.5])
     #ax.set_ylabel('Heterogeneity')
     ax.legend()
-    fig.savefig(f'results/heterogeneity_cont_{mec_type}.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/heterogeneity_cont_{mec_type}.png',bbox_inches = 'tight',dpi=600)
 
 
-def compare_heterogeneity(sigma,N_alg,N_pred,N_ipn,c_pred,c_std,c_mean,sigma_phi,xlabel):
+def compare_heterogeneity(sigma,N_alg,N_pred,N_ipn,c_pred,c_std,c_mean,sigma_phi,xlabel,g_rope,phi_rope):
     s1 = sigma[...,N_alg:(N_alg+N_pred)]
     s2 = sigma[...,(N_ipn+N_alg+N_pred):(N_ipn+N_alg+2*N_pred)]
 
@@ -400,8 +410,8 @@ def compare_heterogeneity(sigma,N_alg,N_pred,N_ipn,c_pred,c_std,c_mean,sigma_phi
     r_mean = jnp.mean(res,axis=0)
     fig,ax = plt.subplots(1,1)
     xi = c_pred*c_std+c_mean
-    ax.plot(xi,(res<-0.1).sum(axis=0)/res.shape[0],linewidth=2,label='alginate-IPN $|G^*|$',color=sns.color_palette('colorblind')[0])
-    ax.plot(xi,(res_2<-0.1).sum(axis=0)/res.shape[0],linewidth=2,label='alginate-IPN $\Phi$',color=sns.color_palette('colorblind')[1])
+    ax.plot(xi,(res<-g_rope).sum(axis=0)/res.shape[0],linewidth=2,label='alginate-IPN $|G^*|$',color=sns.color_palette('colorblind')[0])
+    ax.plot(xi,(res_2<-phi_rope).sum(axis=0)/res.shape[0],linewidth=2,label='alginate-IPN $\Phi$',color=sns.color_palette('colorblind')[1])
     ax.set_ylabel('Probability',fontsize=15)
     ax.set_xlabel(xlabel,fontsize=15)
     #if mec_type =='G':
@@ -425,4 +435,4 @@ def compare_heterogeneity(sigma,N_alg,N_pred,N_ipn,c_pred,c_std,c_mean,sigma_phi
     ax.tick_params(axis='y',labelsize=12)
     ax.tick_params(axis='x',labelsize=12)
     #ax.text(0.01, 0.86, 'A', transform=ax.transAxes,fontsize=20)
-    fig.savefig(f'results/heterogeneity_diff.png',bbox_inches = 'tight',dpi=300)
+    fig.savefig(f'results/heterogeneity_diff.png',bbox_inches = 'tight',dpi=600)

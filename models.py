@@ -29,7 +29,7 @@ sigmoid = lambda x,sat: 1/(1+jnp.exp(-sat*x))
 def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_coating,N_holders,N_dat_samples,N_radius,
               coating_indices,holder_indices,sample_indices,radius_indices,cross_unique_alg,cross_unique_ipn,
               cross_unique_macro_alg,cross_unique_macro_ipn,micro_coords,indices_typed,micro_mu_indices,types,
-              macro_coords,indices_typed_macro,macro_mu_indices,model_type):
+              macro_coords,indices_typed_macro,macro_mu_indices,concentration_indices,temperature_indices,model_type):
 
     if model_type=='linear':
         @tfd.JointDistributionCoroutineAutoBatched
@@ -47,21 +47,40 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
             sigma_rho = yield tfd.Sample(tfd.InverseGaussian(1.,3.),(4,),name='sigma_rho')
             sigma_eta = yield tfd.Sample(tfd.Normal(0.,1.),(N,),name='sigma_eta')
 
-            #coating_mu = yield tfd.Normal(0,1,name='coating_mu')
+            coating_mu = yield tfd.Normal(0,1,name='coating_mu')
             coating_std = yield tfd.HalfNormal(1,name='coating_std')
             coating_z = yield tfd.Normal([0]*N_coating,1,name='coating_z')
             coating_effects = jnp.ones_like(crosslinker)*(coating_std*coating_z[coating_indices])
 
             # concentration
             concentration_mean = yield tfd.Normal(0,1,name='concentration_mu')
-            concentration_intercept = yield tfd.Normal(0,1,name='concentration_intercept')
-            concentration_effect = concentration_mean*concentration+concentration_intercept
+            #concentration_intercept = yield tfd.Normal(0,1,name='concentration_intercept')
+            concentration_effect = concentration_mean*concentration#+concentration_intercept
 
             # temperature
             temperature_mean = yield tfd.Normal(0,1,name='temperature_mu')
-            temperature_intercept = yield tfd.Normal(0,1,name='temperature_intercept')
-            temperature_effect = temperature_mean*temperature+temperature_intercept
+           # temperature_intercept = yield tfd.Normal(0,1,name='temperature_intercept')
+            temperature_effect = temperature_mean*temperature#+temperature_intercept
 
+            # concentration
+            #concentration_mean_sigma = yield tfd.Normal(0,1,name='concentration_mu_sigma')
+            #concentration_intercept_sigma = yield tfd.Normal(0,1,name='concentration_intercept_sigma')
+            #concentration_effect_sigma = concentration_mean_sigma*concentration#+concentration_intercept_sigma
+            concentration_std = yield tfd.HalfNormal(1,name='concentration_std')
+            concentration_z = yield tfd.Normal([0]*np.unique(concentration).shape[0],1,name='concentration_z')
+            concentration_effect_sigma = jnp.ones_like(crosslinker)*(concentration_std*concentration_z[concentration_indices])
+
+
+            # temperature
+            temperature_mean_sigma = yield tfd.Normal(0,1,name='temperature_mu_sigma')
+            #temperature_intercept_sigma = yield tfd.Normal(0,1,name='temperature_intercept_sigma')
+            temperature_effect_sigma = temperature_mean_sigma*temperature#+temperature_intercept_sigma
+            temperature_std = yield tfd.HalfNormal(1,name='temperature_std')
+            temperature_z = yield tfd.Normal([0]*np.unique(temperature).shape[0],1,name='temperature_z')
+            temperature_effect_sigma = jnp.ones_like(crosslinker)*(temperature_std*temperature_z[temperature_indices])
+            
+            #holder_mean = yield tfd.Normal(0.,1.,name='holder_mean')
+            #sample_mean = yield tfd.Normal(0.,1.,name='sample_mean')
             holder_std = yield tfd.HalfNormal(1.,name='holder_std')
             sample_std = yield tfd.HalfNormal(1.,name='sample_std')
             holder_z = yield tfd.Normal([0]*N_holders,1,name='holder_z')
@@ -96,7 +115,8 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
             #+holder_effect+sample_effect+\
             lik = yield tfd.Normal(loc=curve[micro_coords][indices_typed,micro_mu_indices]+radius_effects+coating_effects+holder_effect+sample_effect+\
                                             concentration_effect*types+temperature_effect*types,
-                                        scale=jnn.softplus(sigma[micro_coords][indices_typed]+sigma_mu[micro_mu_indices]+radius_sigma_effects),
+                                        scale=jnn.softplus(sigma[micro_coords][indices_typed]+sigma_mu[micro_mu_indices]+radius_sigma_effects+\
+                                                           concentration_effect_sigma*types+temperature_effect_sigma*types),
                                         name='likelihood')
             lik_mac = yield tfd.Normal(loc=curve[macro_coords][indices_typed_macro,macro_mu_indices],
                                     scale=jnn.softplus(sigma[macro_coords][indices_typed_macro]+sigma_mu[macro_mu_indices]),name='likelihood_macro')
@@ -107,12 +127,15 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
 
             #switchpoint = yield tfd.Sample(tfd.Normal((20-c_mean)/c_std,2.),(1,2),name='switchpoint')
             switchpoint = yield tfd.Normal((20-c_mean)/c_std,2.,name='switchpoint')
+            switch_z = yield tfd.Sample(tfd.Normal(0,1),(1,4),name='switch_z')
+            switch_std = yield tfd.HalfNormal(1.,name='swtich_std')
             slope1 = yield tfd.Sample(tfd.Normal(0.,1.),(1,4),name='slope1')
             slope2 = yield tfd.Sample(tfd.Normal(0.,1.),(1,4),name='slope2')
             intercept = yield tfd.Sample(tfd.Normal(0.,1.),(1,4),name='intercept')
 
             #switch = switchpoint[...,[0,0,1,1]]
-            switch = switchpoint
+            switch = switchpoint+switch_std*switch_z
+            #switch = switchpoint
             #switch = tfb.Shift((20-c_mean)/c_std).forward(switchpoint)[...,[0,0,1,1]]
             i2 = (slope2*switch+intercept)-slope1*switch
             slope = slope2+sigmoid(switch-cross_all[...,None],10)*(slope1-slope2)
@@ -129,19 +152,44 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
 
             # concentration
             concentration_mean = yield tfd.Normal(0,1,name='concentration_mu')
-            concentration_intercept = yield tfd.Normal(0,1,name='concentration_intercept')
-            concentration_effect = concentration_mean*concentration+concentration_intercept
+            #concentration_intercept = yield tfd.Normal(0,1,name='concentration_intercept')
+            concentration_effect = concentration_mean*concentration#+concentration_intercept
 
             # temperature
             temperature_mean = yield tfd.Normal(0,1,name='temperature_mu')
-            temperature_intercept = yield tfd.Normal(0,1,name='temperature_intercept')
-            temperature_effect = temperature_mean*temperature+temperature_intercept
+            #temperature_intercept = yield tfd.Normal(0,1,name='temperature_intercept')
+            temperature_effect = temperature_mean*temperature#+temperature_intercept
+            
+            # concentration
+            #concentration_mean_sigma = yield tfd.Normal(0.,1.,name='concentration_mu_sigma')
+            concentration_std = yield tfd.HalfNormal(1,name='concentration_std')
+            concentration_z = yield tfd.Normal([0]*np.unique(concentration).shape[0],1,name='concentration_z')
+            concentration_effect_sigma = jnp.ones_like(crosslinker)*(concentration_std*concentration_z[concentration_indices])
 
+            # temperature
+            #temperature_mean_sigma = yield tfd.Normal(0.,1.,name='temperature_mu_sigma')
+            temperature_std = yield tfd.HalfNormal(1,name='temperature_std')
+            temperature_z = yield tfd.Normal([0]*np.unique(temperature).shape[0],1,name='temperature_z')
+            temperature_effect_sigma = jnp.ones_like(crosslinker)*(temperature_std*temperature_z[temperature_indices])
+            
+            #concentration_mean_sigma = yield tfd.Normal(0,1,name='concentration_mu_sigma')
+            #concentration_intercept_sigma = yield tfd.Normal(0,1,name='concentration_intercept_sigma')
+            #concentration_effect_sigma = concentration_mean_sigma*concentration+concentration_intercept_sigma
+
+
+            #temperature_mean_sigma = yield tfd.Normal(0,1,name='temperature_mu_sigma')
+            #temperature_intercept_sigma = yield tfd.Normal(0,1,name='temperature_intercept_sigma')
+            #temperature_effect_sigma = temperature_mean_sigma*temperature+temperature_intercept_sigma
+
+            #holder_mean = yield tfd.Normal(0.,1.,name='holder_mean')
+            #sample_mean = yield tfd.Normal(0.,1.,name='sample_mean')
             holder_std = yield tfd.HalfNormal(1.,name='holder_std')
             sample_std = yield tfd.HalfNormal(1.,name='sample_std')
             holder_z = yield tfd.Normal([0]*N_holders,1,name='holder_z')
             sample_z = yield tfd.Normal([0]*N_dat_samples,1,name='sample_z')
-
+            #coating_sigma_std = yield tfd.HalfNormal(1,name='coating_sigma_std')
+            #coating_sigma_z = yield tfd.Normal([0]*N_coating,1,name='coating_sigma_z')
+            #coating_sigma_effects = jnp.ones_like(crosslinker)*(coating_sigma_std*coating_sigma_z[coating_indices])
             holder_effect = jnp.ones_like(crosslinker)*(holder_std*holder_z[holder_indices])
             sample_effect = jnp.ones_like(crosslinker)*(sample_std*sample_z[sample_indices])
             #coating_sigma_std = yield tfd.HalfNormal(1,name='coating_sigma_std')
@@ -150,6 +198,7 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
 
             #mean_mu = yield tfd.Sample(tfd.Normal(0,1),(4,),name='mean_mu')
             sigma_mu = yield tfd.Sample(tfd.Normal(0,1),(4,),name='sigma_mu')
+    
             #radius_mu = yield tfd.Normal(0,1,name='radius_mu')
             radius_std = yield tfd.HalfNormal(1,name='radius_std')
             radius_z = yield tfd.Normal([0]*N_radius,1,name='radius_z')
@@ -173,7 +222,8 @@ def gen_model(crosslinker,concentration,temperature,cross_all,c_mean,c_std,N,N_c
             lik = yield tfd.Normal(loc=curve[micro_coords][indices_typed,micro_mu_indices]+radius_effects+coating_effects+\
                                         holder_effect+sample_effect+\
                                         concentration_effect*types+temperature_effect*types,
-                                        scale=jnn.softplus(sigma[micro_coords][indices_typed]+radius_sigma_effects+sigma_mu[micro_mu_indices]),
+                                        scale=jnn.softplus(sigma[micro_coords][indices_typed]+radius_sigma_effects+sigma_mu[micro_mu_indices]+\
+                                                           concentration_effect_sigma*types+temperature_effect_sigma*types),
                                         name='likelihood')
             lik_mac = yield tfd.Normal(loc=curve[macro_coords][indices_typed_macro,macro_mu_indices],
                                     scale=jnn.softplus(sigma[macro_coords][indices_typed_macro]+sigma_mu[macro_mu_indices]),name='likelihood_macro')
@@ -227,11 +277,13 @@ def gen_predictive(model,states):
     return samps
 
 
-def diagnostics(states,log_probs,samps,radius_orig,coating_orig,G_names,G_macro_names,G,G_macro,model_type):
+def diagnostics(states,log_probs,samps,radius_orig,coating_orig,temperature_orig,concentration_orig,G_names,G_macro_names,G,G_macro,model_type,scale=1):
 
     coords = {
-        'radius': np.unique(radius_orig),
+        'radius': [r'{:} $\mu m$'.format(i) for i in np.unique(radius_orig)],
         'coating': np.unique(coating_orig),
+        'temperature': [r'{:}$^\circ$C'.format(i) for i in np.unique(temperature_orig)],
+        'concentration': [r'{:} mg/ml'.format(i) for i in np.unique(concentration_orig)],
         'names': ['micro alginate','micro IPN','macro alginate','macro IPN'],
         'names2':['micro','macro'],
         'G_names':G_names,
@@ -258,6 +310,9 @@ def diagnostics(states,log_probs,samps,radius_orig,coating_orig,G_names,G_macro_
             'radius_sigma_z': ['radius'],
             'likelihood':['G_names'],
             'likelihood_macro':['G_macro_names'],
+            'radius_sigma_z': ['radius'],
+            'temperature_z':['temperature'],
+            'concentration_z':['concentration']
         }
     else:
         dims = {
@@ -277,8 +332,12 @@ def diagnostics(states,log_probs,samps,radius_orig,coating_orig,G_names,G_macro_
             #'coating_sigma_z': ['coating'],
             #'radius_std': ['dim'],
             'radius_z': ['radius'],
-            #'radius_sigma_std': ['dim'],
             'radius_sigma_z': ['radius'],
+            'likelihood':['G_names'],
+            'likelihood_macro':['G_macro_names'],
+            'radius_sigma_z': ['radius'],
+            'temperature_z':['temperature'],
+            'concentration_z':['concentration']
         }
 
     trace = az.from_dict(
@@ -293,11 +352,13 @@ def diagnostics(states,log_probs,samps,radius_orig,coating_orig,G_names,G_macro_
     coords=coords,
     dims=dims
     )
-    trace.posterior['radius_effect'] = trace.posterior['radius_z']*trace.posterior['radius_std']
-    trace.posterior['radius_sigma_effect'] = trace.posterior['radius_sigma_z']*trace.posterior['radius_sigma_std']
-    trace.posterior['coating_effect'] = trace.posterior['coating_z']*trace.posterior['coating_std']
-    trace.posterior['holder_effect'] = trace.posterior['holder_z']*trace.posterior['holder_std']#+trace.posterior['holder_mu']
-    trace.posterior['sample_effect'] = trace.posterior['sample_z']*trace.posterior['sample_std']#+trace.posterior['sample_mu']
+    trace.posterior['radius_effect'] = trace.posterior['radius_z']*trace.posterior['radius_std']*scale#+trace.posterior['radius_mu']
+    trace.posterior['radius_sigma_effect'] = trace.posterior['radius_sigma_z']*trace.posterior['radius_sigma_std']*scale#+trace.posterior['radius_sigma_mu']
+    trace.posterior['coating_effect'] = trace.posterior['coating_z']*trace.posterior['coating_std']*scale#+trace.posterior['coating_mu']
+    trace.posterior['temperature_sigma_effect'] = trace.posterior['temperature_std']*trace.posterior['temperature_z']*scale#+trace.posterior['temperature_mu_sigma']
+    trace.posterior['concentration_sigma_effect'] = trace.posterior['concentration_std']*trace.posterior['concentration_z']*scale#+trace.posterior['concentration_mu_sigma']
+    #trace.posterior['holder_effect'] = trace.posterior['holder_z']*trace.posterior['holder_std']#+trace.posterior['holder_mu']
+    #trace.posterior['sample_effect'] = trace.posterior['sample_z']*trace.posterior['sample_std']#+trace.posterior['sample_mu']
     #trace.posterior['coating_sigma_effect'] = trace.posterior['coating_sigma_z']*trace.posterior['coating_sigma_std']
 
     return trace

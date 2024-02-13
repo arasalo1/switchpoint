@@ -68,9 +68,7 @@ def generate_indices(data,macro):
         concentration_indices,concentration_orig,\
         cross_indices
 
-
-
-def generate_XY(data,macro,mec_type):
+def generate_XY_normed(data,macro,mec_type):
     crosslinker = jnp.array(data['crosslinker'])
     crosslinker_raw = crosslinker.copy()
     c_mean = crosslinker.mean()
@@ -99,11 +97,46 @@ def generate_XY(data,macro,mec_type):
     G_raw_macro = G_macro.copy()
     G_macro = jnp.log(G_macro)
 
-    #G -= g_mean
+    #G_macro -= g_mean
     G_macro = (G_macro-g_mean)/g_std
 
     return crosslinker,crosslinker_raw,c_mean,c_std,crosslinker_macro,crosslinker_macro_raw,\
-            G,G_macro
+            G,G_macro,g_mean,g_std
+
+def generate_XY(data,macro,mec_type):
+    crosslinker = jnp.array(data['crosslinker'])
+    crosslinker_raw = crosslinker.copy()
+    c_mean = crosslinker.mean()
+    c_std = crosslinker.std()
+    crosslinker = (crosslinker-c_mean)/c_std
+    if mec_type=='G':
+        G = jnp.array(data['G_abs'])
+    else:
+        G = jnp.array(data['phi_(rad)'])
+    G_raw = G.copy()
+    G = jnp.log(G)
+    #G = jnp.sqrt(G)
+    g_mean = G.mean()
+    g_std = G.std()
+    G -= g_mean
+    #G = (G-g_mean)/g_std
+
+    crosslinker_macro = jnp.array(macro['crosslinker'])
+    crosslinker_macro_raw = crosslinker_macro.copy()
+
+    crosslinker_macro = (crosslinker_macro-c_mean)/c_std
+    if mec_type=='G':
+        G_macro = jnp.array(macro['Complex Shear Modulus'])
+    else:
+        G_macro = jnp.array(np.deg2rad(macro['Phase Shift Angle'].values))
+    G_raw_macro = G_macro.copy()
+    G_macro = jnp.log(G_macro)
+
+    G_macro -= g_mean
+    #G_macro = (G_macro-g_mean)/g_std
+
+    return crosslinker,crosslinker_raw,c_mean,c_std,crosslinker_macro,crosslinker_macro_raw,\
+            G,G_macro,g_mean,g_std
 
 def _gen_indices(data,names,idx,indices,orig_indices):
     # generate running indices based on the hierarchy
@@ -195,7 +228,7 @@ def generate_indices_cumulative(data,crosslinker,type_indices,crosslinker_macro,
     concentration = np.array(data['concentration'].values)
     concentration = jnp.array((concentration-concentration.mean())/concentration.std())
     temperature = np.array(data['temp'].values)
-    temperature = jnp.array((temperature-temperature.min())/(temperature.max()-temperature.std()))
+    temperature = jnp.array((temperature-temperature.mean())/temperature.std())
 
     types = np.zeros_like(data['type'].values,dtype=float)
     for i in data['type'].unique():
