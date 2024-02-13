@@ -9,7 +9,7 @@ import os
 
 
 def load_data(path):
-    data = pd.read_csv(os.path.join(path,'microdata.csv'))
+    data = pd.read_csv(os.path.join(path,'processed_both.csv'),index_col=0)
     data = data[data['phi_(rad)']>np.deg2rad(0)]
     data = data.groupby(['temp','concentration','type','coating_type','size','crosslinker','day',
                         'day_repeat','sample','holder','location','track_id']).mean(numeric_only=True).reset_index(drop=False)
